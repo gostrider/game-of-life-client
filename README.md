@@ -38,6 +38,7 @@ It competes with projects like React as a tool for creating websites and web app
 This project follows [TEA](https://guide.elm-lang.org/architecture/) architecture and Module separated by MVC architecture.
 
 ## Features completed:
+- User connect to server using web socket
 - User able to select different cells on the gird
 - User able to sends the selected cells to game server
 - User able to reset the game
