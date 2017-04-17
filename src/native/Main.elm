@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html, program)
 import WebSocket as WS
-import Models.Board as Board exposing (Board, BoardAction)
+import Model.Board as Board exposing (Board, BoardAction)
 import View.Board as Board
 
 
