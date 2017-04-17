@@ -3,6 +3,7 @@ module Model.Board exposing (..)
 import WebSocket as WS
 import Json.Encode as En
 import List as L
+import Tuple as T
 import Model.Cell as C exposing (Cell, CellAction)
 
 
@@ -36,7 +37,7 @@ update action board =
         Send ->
             let
                 payload =
-                    En.encode 0 (change [])
+                    En.encode 0 (change board.pending)
             in
                 ( board, ws_send payload )
 
@@ -63,12 +64,17 @@ query action =
     En.object [ ( "action", En.string action ) ]
 
 
-change : List (Int, Int) -> En.Value
+change : List Cell -> En.Value
 change cells =
-    -- TODO: Encode Cell type
     let
-        encoder =
-            tuple2 En.int En.int
+        cell_position =
+            C.pos_
+
+        encoder cell =
+            En.object
+                [ ("x", cell |> cell_position >> T.first >> En.int)
+                , ("y", cell |> cell_position >> T.second >> En.int)
+                ]
     in
         En.object
             [ ( "action", En.string "change" )
