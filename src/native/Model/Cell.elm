@@ -1,4 +1,16 @@
-module Model.Cell exposing (..)
+module Model.Cell
+    exposing
+        ( Cell
+        , CellAction(..)
+        , init
+        , cell_update
+        , pos_
+        , pos__
+        , alive_
+        , alive__
+        , color_
+        , color__
+        )
 
 
 type alias Cell =

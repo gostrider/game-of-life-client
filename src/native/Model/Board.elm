@@ -1,9 +1,15 @@
-module Model.Board exposing (..)
+module Model.Board
+    exposing
+        ( Board
+        , BoardAction(..)
+        , init
+        , board_update
+        )
 
-import WebSocket as WS
 import Json.Encode as En
-import List as L
-import Tuple as T
+import WebSocket exposing (send)
+import List exposing (filter, map)
+import Tuple exposing (first, second)
 import Model.Cell as C exposing (Cell, CellAction)
 
 
@@ -28,8 +34,8 @@ init =
     Board 10 10 C.init [] ""
 
 
-update : BoardAction -> Board -> ( Board, Cmd BoardAction )
-update action board =
+board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
+board_update action board =
     case action of
         Incoming message_ ->
             ( { board | status = message_ }, Cmd.none )
@@ -56,7 +62,7 @@ update action board =
                 new_pending =
                     toggle_cell board.pending cell_
             in
-                ({ board | cell = cell_, pending = new_pending }, Cmd.none)
+                ( { board | cell = cell_, pending = new_pending }, Cmd.none )
 
 
 query : String -> En.Value
@@ -72,13 +78,13 @@ change cells =
 
         encoder cell =
             En.object
-                [ ("x", cell |> cell_position >> T.first >> En.int)
-                , ("y", cell |> cell_position >> T.second >> En.int)
+                [ ( "x", cell |> cell_position >> first >> En.int )
+                , ( "y", cell |> cell_position >> second >> En.int )
                 ]
     in
         En.object
             [ ( "action", En.string "change" )
-            , ( "cell", En.list (L.map encoder cells) )
+            , ( "cell", En.list (map encoder cells) )
             ]
 
 
@@ -89,7 +95,7 @@ tuple2 enc1 enc2 ( val1, val2 ) =
 
 ws_send : String -> Cmd BoardAction
 ws_send =
-    WS.send "ws://localhost:8001/ws/test"
+    send "ws://localhost:8001/ws/test"
 
 
 match_pos : Cell -> Cell -> Bool
@@ -100,7 +106,7 @@ match_pos c1 c2 =
 toggle_cell : List Cell -> Cell -> List Cell
 toggle_cell cells cell =
     if member_of cell cells match_pos then
-        L.filter (not << (match_pos cell)) cells
+        filter (not << (match_pos cell)) cells
     else
         cell :: cells
 

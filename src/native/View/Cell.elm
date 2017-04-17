@@ -1,10 +1,10 @@
-module View.Cell exposing (..)
+module View.Cell exposing (draw_cells)
 
 import Html exposing (Html, td, tr, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
-import Model.Cell as C exposing (Cell, CellAction(..))
-import List as L
+import Model.Cell exposing (Cell, CellAction(..), alive__, color__)
+import List exposing (member)
 
 
 cell_view : Cell -> Html CellAction
@@ -31,7 +31,7 @@ draw_row rows row column cells =
             row - 1
 
         cell_y =
-            flip C.Cell row
+            flip Cell row
 
         element =
             draw_column [] column cell_y cells |> tr []
@@ -63,7 +63,7 @@ draw_column columns column cell cells =
 
 transform_cell : Cell -> List Cell -> Cell
 transform_cell cell cells =
-    if L.member cell cells then
-        cell |> C.color__ "red" << C.alive__ "O"
+    if member cell cells then
+        cell |> color__ "red" << alive__ "O"
     else
         cell
