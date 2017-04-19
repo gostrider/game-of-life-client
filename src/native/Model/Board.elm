@@ -6,8 +6,7 @@ module Model.Board
         , board_update
         )
 
-import Json.Encode as En
-import Json.Decode as De
+import Json.Encode exposing (encode)
 import WebSocket exposing (send)
 import Model.Cell as C exposing (Cell, CellAction)
 import Utils.Utils as U
@@ -68,14 +67,14 @@ board_update action board =
         Send ->
             let
                 payload =
-                    En.encode 0 (Request.change board.pending)
+                    encode 0 (Request.change board.pending)
             in
                 ( board, ws_send payload )
 
         ResetInput ->
             let
                 payload =
-                    En.encode 0 (Request.query "reset")
+                    encode 0 (Request.query "reset")
 
                 cells_ =
                     C.init_cells board.width board.height
@@ -138,14 +137,11 @@ replace_multiple cells cells_ =
 
         c_ :: cs_ ->
             let
-                flatten =
-                    List.concatMap identity
-
                 match_row =
-                    List.partition (find_row c_) cells
+                    List.partition (flip (fmap (match_row_or_column c_)) False << List.head) cells
 
                 member =
-                    Tuple.first match_row |> flip pend_cell c_ << flatten
+                    Tuple.first match_row |> flip pend_cell c_ << U.flatten
 
                 p_member =
                     List.partition (\x -> C.alive_ x == "O") member
@@ -197,17 +193,13 @@ member_of cell cells f =
                 member_of cell cs f
 
 
-find_row : Cell -> List Cell -> Bool
-find_row cell cells =
-    case cells of
-        [] ->
-            False
+fmap f x =
+    flip Maybe.withDefault (Maybe.map f x)
 
-        c :: cs ->
-            if C.y_ c == C.y_ cell || C.x_ c == C.x_ cell then
-                True
-            else
-                False
+
+match_row_or_column : Cell -> Cell -> Bool
+match_row_or_column cell1 cell2 =
+    (C.y_ cell1 == C.y_ cell2) || (C.x_ cell1 == C.x_ cell2)
 
 
 find_distinct_cell : Cell -> List Cell -> List Cell
