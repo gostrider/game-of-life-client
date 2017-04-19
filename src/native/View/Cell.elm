@@ -1,10 +1,9 @@
-module View.Cell exposing (draw_cells)
+module View.Cell exposing (draw_row)
 
 import Html exposing (Html, td, tr, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
-import Model.Cell exposing (Cell, CellAction(..), alive__, color__)
-import List exposing (member)
+import Model.Cell exposing (Cell, CellAction(..))
 
 
 cell_view : Cell -> Html CellAction
@@ -19,51 +18,24 @@ cell_view cell =
         td [ css, action ] [ text cell.alive ]
 
 
-draw_cells : Int -> Int -> List Cell -> List (Html CellAction)
-draw_cells =
-    draw_row []
-
-
-draw_row : List (Html CellAction) -> Int -> Int -> List Cell -> List (Html CellAction)
-draw_row rows row column cells =
+draw_row : List (List Cell) -> Html CellAction
+draw_row cells =
     let
-        next =
-            row - 1
-
-        cell_y =
-            flip Cell row
-
-        element =
-            draw_column [] column cell_y cells |> tr []
+        rows =
+            draw_row_ [] cells
     in
-        case row of
-            0 ->
-                rows
-
-            _ ->
-                draw_row (element :: rows) next column cells
+        Html.table [ Html.Attributes.align "center" ] rows
 
 
-draw_column : List (Html CellAction) -> Int -> (Int -> String -> String -> Cell) -> List Cell -> List (Html CellAction)
-draw_column columns column cell cells =
-    let
-        next =
-            column - 1
+draw_row_ : List (Html CellAction) -> List (List Cell) -> List (Html CellAction)
+draw_row_ acc cells =
+    case cells of
+        [] ->
+            acc
 
-        element =
-            (cell column "X" "grey") |> cell_view << flip transform_cell cells
-    in
-        case column of
-            0 ->
-                columns
-
-            _ ->
-                draw_column (element :: columns) next cell cells
-
-
-transform_cell : Cell -> List Cell -> Cell
-transform_cell cell cells =
-    if member cell cells then
-        cell |> color__ "red" << alive__ "O"
-    else
-        cell
+        c :: cs ->
+            let
+                element =
+                    tr [] (List.map cell_view c)
+            in
+                draw_row_ (element :: acc) cs

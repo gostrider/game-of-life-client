@@ -1,6 +1,5 @@
 module View.Board exposing (board_view)
 
-import List exposing (map)
 import Html exposing (Html, div, button, br, h1, table, text)
 import Html.Attributes exposing (align)
 import Html.Events exposing (onClick)
@@ -13,21 +12,19 @@ import Model.Board
             , Send
             )
         )
-import View.Cell exposing (draw_cells)
+import View.Cell exposing (draw_row)
 
 
 board_view : Board -> Html BoardAction
 board_view board =
     let
         cells_grid =
-            draw_cells 5 5 board.pending
+            draw_row board.cells |> Html.map UpdateCell
 
-        lift_grid =
-            cells_grid |> map (Html.map UpdateCell)
     in
         div [ align "center" ]
             [ h1 [] [ text "title" ]
-            , table [] lift_grid
+            , cells_grid
             , br [] []
             , div []
                 [ button [ onClick ResetInput ] [ text "Reset" ]
