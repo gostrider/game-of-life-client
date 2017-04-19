@@ -9,9 +9,9 @@ module Model.Board
 import Json.Encode as En
 import Json.Decode as De
 import WebSocket exposing (send)
-import Tuple exposing (first, second)
 import Model.Cell as C exposing (Cell, CellAction)
 import Utils.Utils as U
+import Utils.Request as Request
 
 
 type alias Board =
@@ -52,7 +52,7 @@ board_update action board =
         Incoming message_ ->
             let
                 decode_message =
-                    decode_cells message_
+                    Request.decode_cells message_
 
                 pending_ : List Cell
                 pending_ =
@@ -68,14 +68,14 @@ board_update action board =
         Send ->
             let
                 payload =
-                    En.encode 0 (change board.pending)
+                    En.encode 0 (Request.change board.pending)
             in
                 ( board, ws_send payload )
 
         ResetInput ->
             let
                 payload =
-                    En.encode 0 (query "reset")
+                    En.encode 0 (Request.query "reset")
 
                 cells_ =
                     C.init_cells board.width board.height
@@ -101,56 +101,17 @@ board_update action board =
                         ( { board | cell = current, cells = cells_, pending = pending_ }, Cmd.none )
 
 
-query : String -> En.Value
-query action =
-    En.object [ ( "action", En.string action ) ]
-
-
-change : List Cell -> En.Value
-change cells =
-    let
-        cell_position =
-            C.pos_
-
-        encoder cell =
-            En.object
-                [ ( "x", cell |> cell_position >> first >> En.int )
-                , ( "y", cell |> cell_position >> second >> En.int )
-                ]
-    in
-        En.object
-            [ ( "action", En.string "change" )
-            , ( "cell", En.list (List.map encoder cells) )
-            ]
-
-
-tuple2 : (a -> En.Value) -> (b -> En.Value) -> ( a, b ) -> En.Value
-tuple2 enc1 enc2 ( val1, val2 ) =
-    En.list [ enc1 val1, enc2 val2 ]
-
-
-decode_cells =
-    De.decodeString (De.field "result" decode_cell)
-
-
-decode_cell =
-    De.list <|
-        De.map4 Cell
-            (De.field "x" De.int)
-            (De.field "y" De.int)
-            (De.field "alive" De.string)
-            (De.field "color" De.string)
-
-
 ws_send : String -> Cmd BoardAction
 ws_send =
     send "ws://localhost:8001/ws/test"
 
 
+cells_update : List (List Cell) -> Cell -> List (List Cell)
 cells_update =
     cells_update_ []
 
 
+cells_update_ : List (List Cell) -> List (List Cell) -> Cell -> List (List Cell)
 cells_update_ acc cells cell =
     case cells of
         [] ->
@@ -159,24 +120,17 @@ cells_update_ acc cells cell =
         cs :: css ->
             let
                 row =
-                    replace_cell cs cell
+                    replace_cell cs cell |> List.sortBy C.x_
             in
                 cells_update_ (row :: acc) css cell
 
 
-replace_cell cells cell =
-    if member_of cell cells match_pos then
-        cell :: find_distinct_cell cell cells |> List.sortBy C.x_
-    else
-        cells
-
+reorder : List (List Cell) -> List (List Cell)
 reorder cells =
-    let
-        each_y c = List.map C.y_ c
-    in
-        List.sortBy each_y cells
+    List.sortBy (List.map C.y_) cells
 
 
+replace_multiple : List (List Cell) -> List Cell -> List (List Cell)
 replace_multiple cells cells_ =
     case cells_ of
         [] ->
@@ -187,7 +141,8 @@ replace_multiple cells cells_ =
                 flatten =
                     List.concatMap identity
 
-                match_row = List.partition (find_row c_) cells
+                match_row =
+                    List.partition (find_row c_) cells
 
                 member =
                     Tuple.first match_row |> flip pend_cell c_ << flatten
@@ -204,6 +159,7 @@ replace_multiple cells cells_ =
                 replace_multiple elements cs_
 
 
+change_cell : List Cell -> List Cell -> List Cell
 change_cell acc cells =
     case cells of
         [] ->
@@ -221,18 +177,6 @@ change_cell acc cells =
                     c |> C.alive__ flip_alive << C.color__ flip_color
             in
                 change_cell (element :: acc) cs
-
-
-find_row cell cells =
-    case cells of
-        [] ->
-            False
-
-        c :: cs ->
-            if C.y_ c == C.y_ cell || C.x_ c == C.x_ cell then
-                True
-            else
-                False
 
 
 match_pos : Cell -> Cell -> Bool
@@ -253,10 +197,33 @@ member_of cell cells f =
                 member_of cell cs f
 
 
+find_row : Cell -> List Cell -> Bool
+find_row cell cells =
+    case cells of
+        [] ->
+            False
+
+        c :: cs ->
+            if C.y_ c == C.y_ cell || C.x_ c == C.x_ cell then
+                True
+            else
+                False
+
+
+find_distinct_cell : Cell -> List Cell -> List Cell
 find_distinct_cell c cs =
     List.filter (not << (match_pos c)) cs
 
 
+replace_cell : List Cell -> Cell -> List Cell
+replace_cell cells cell =
+    if member_of cell cells match_pos then
+        cell :: find_distinct_cell cell cells
+    else
+        cells
+
+
+pend_cell : List Cell -> Cell -> List Cell
 pend_cell cells cell =
     if member_of cell cells match_pos then
         find_distinct_cell cell cells
@@ -264,6 +231,7 @@ pend_cell cells cell =
         cell :: cells
 
 
+traverse_cells : Int -> Int -> List (List Cell) -> Cell -> Cell
 traverse_cells x y cells default =
     case cells of
         [] ->
