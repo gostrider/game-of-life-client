@@ -59,9 +59,8 @@ board_update action board =
                     Result.withDefault [] decode_message
 
                 cells_ =
-                    replace_multiple board.cells pending_
+                    replace_multiple board.cells pending_ |> reorder
             in
---                Debug.log (toString cells_)
                 ( { board | status = message_, pending = pending_, cells = cells_ }
                 , Cmd.none
                 )
@@ -99,7 +98,6 @@ board_update action board =
                         pending_ =
                             pend_cell board.pending cell_
                     in
-                        Debug.log (toString x_ ++ toString y_)
                         ( { board | cell = current, cells = cells_, pending = pending_ }, Cmd.none )
 
 
@@ -172,6 +170,12 @@ replace_cell cells cell =
     else
         cells
 
+reorder cells =
+    let
+        each_y c = List.map C.y_ c
+    in
+        List.sortBy each_y cells
+
 
 replace_multiple cells cells_ =
     case cells_ of
@@ -197,7 +201,6 @@ replace_multiple cells cells_ =
                 elements =
                     new_cells :: (Tuple.second match_row)
             in
-                Debug.log (toString elements)
                 replace_multiple elements cs_
 
 

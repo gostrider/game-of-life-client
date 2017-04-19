@@ -79,11 +79,11 @@ init_column acc count_x count_y =
 
         _ ->
             let
-                id =
-                    toString count_x ++ toString count_y
+--                id =
+--                    toString count_x ++ toString count_y
 
                 element =
-                    Cell count_x count_y id "grey"
+                    Cell count_x count_y "X" "grey"
             in
                 init_column (element :: acc) (count_x - 1) count_y
 
