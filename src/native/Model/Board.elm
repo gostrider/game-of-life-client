@@ -13,12 +13,20 @@ import Utils.Utils as U
 import Utils.Request as Request
 
 
+type alias CellMatrix =
+    List Cells
+
+
+type alias Cells =
+    List Cell
+
+
 type alias Board =
     { width : Int
     , height : Int
     , cell : Cell
-    , cells : List (List Cell)
-    , pending : List Cell
+    , cells : CellMatrix
+    , pending : Cells
     , status : String
     }
 
@@ -53,7 +61,7 @@ board_update action board =
                 decode_message =
                     Request.decode_cells message_
 
-                pending_ : List Cell
+                pending_ : Cells
                 pending_ =
                     Result.withDefault [] decode_message
 
@@ -109,17 +117,17 @@ ws_send =
 -- Cell operations
 
 
-cells_update : List (List Cell) -> Cell -> List (List Cell)
+cells_update : CellMatrix -> Cell -> CellMatrix
 cells_update cells cell =
     let
-        by : List Cell -> List (List Cell) -> List (List Cell)
+        by : Cells -> CellMatrix -> CellMatrix
         by cell_ =
             (::) (replace_cell cell_ cell |> List.sortBy C.x_)
     in
         List.foldl by [] cells |> List.reverse
 
 
-replace_multiple_ : List (List Cell) -> List Cell -> List (List Cell)
+replace_multiple_ : CellMatrix -> Cells -> CellMatrix
 replace_multiple_ origin_cells mutate_cells =
     case mutate_cells of
         [] ->
@@ -127,34 +135,34 @@ replace_multiple_ origin_cells mutate_cells =
 
         m_cell :: m_cells ->
             let
-                mutate_row : Cell -> ( List (List Cell), List (List Cell) )
+                mutate_row : Cell -> ( CellMatrix, CellMatrix )
                 mutate_row =
                     get_x_y_members origin_cells
 
-                mutate_members : ( List (List Cell), List (List Cell) ) -> List Cell
+                mutate_members : ( CellMatrix, CellMatrix ) -> Cells
                 mutate_members =
                     flip append_cell m_cell << U.flatten << Tuple.first
 
-                alive_members : List Cell -> ( List Cell, List Cell )
+                alive_members : Cells -> ( Cells, Cells )
                 alive_members =
                     List.partition ((==) "O" << C.alive_)
 
-                new_row : ( List Cell, List Cell ) -> List Cell
+                new_row : ( Cells, Cells ) -> Cells
                 new_row =
                     flip join_cells m_cell
 
-                run : Cell -> List Cell
+                run : Cell -> Cells
                 run =
                     new_row << alive_members << mutate_members << mutate_row
 
-                elements : List (List Cell)
+                elements : CellMatrix
                 elements =
                     (run m_cell) :: (m_cell |> Tuple.second << mutate_row)
             in
                 replace_multiple_ elements m_cells
 
 
-mutate_cells : List Cell -> List Cell
+mutate_cells : Cells -> Cells
 mutate_cells cells =
     let
         f_alive : Cell -> Cell
@@ -165,17 +173,17 @@ mutate_cells cells =
         f_color c =
             C.color__ (U.flip "grey" "red" (C.color_ c)) c
 
-        element : Cell -> List Cell -> List Cell
+        element : Cell -> Cells -> Cells
         element cell =
             (::) (cell |> f_color << f_alive)
     in
         List.foldl element [] cells
 
 
-traverse_cells : Int -> Int -> List (List Cell) -> Cell -> Cell
+traverse_cells : Int -> Int -> CellMatrix -> Cell -> Cell
 traverse_cells x y cells default =
     let
-        by : List Cell -> List Cell -> List Cell
+        by : Cells -> Cells -> Cells
         by cs _ =
             List.filter (match_x_y x y) cs
 
@@ -214,7 +222,7 @@ fmapBool f x =
     Maybe.withDefault False (Maybe.map f x)
 
 
-any_x_y : Cell -> List Cell -> Bool
+any_x_y : Cell -> Cells -> Bool
 any_x_y cell =
     fmapBool (match_x_or_y cell) << List.head
 
@@ -224,25 +232,25 @@ member_of f cells =
     List.any f cells
 
 
-reorder : List (List Cell) -> List (List Cell)
+reorder : CellMatrix -> CellMatrix
 reorder cells =
     List.sortBy (List.map C.y_) cells
 
 
-get_row_members : List Cell -> Cell -> List Cell
+get_row_members : Cells -> Cell -> Cells
 get_row_members cells cell =
     List.filter (not << (match_pos cell)) cells
 
 
 get_x_y_members :
-    List (List Cell)
+    CellMatrix
     -> Cell
-    -> ( List (List Cell), List (List Cell) )
+    -> ( CellMatrix, CellMatrix )
 get_x_y_members cells cell =
     List.partition (any_x_y cell) cells
 
 
-join_cells : ( List Cell, List Cell ) -> Cell -> List Cell
+join_cells : ( Cells, Cells ) -> Cell -> Cells
 join_cells mutate_and_remain cell =
     cell
         :: (mutate_and_remain |> mutate_cells << Tuple.first)
@@ -254,7 +262,7 @@ join_cells mutate_and_remain cell =
 -- Control flow
 
 
-replace_cell : List Cell -> Cell -> List Cell
+replace_cell : Cells -> Cell -> Cells
 replace_cell cells cell =
     if member_of (match_pos cell) cells then
         cell :: get_row_members cells cell
@@ -262,7 +270,7 @@ replace_cell cells cell =
         cells
 
 
-append_cell : List Cell -> Cell -> List Cell
+append_cell : Cells -> Cell -> Cells
 append_cell cells cell =
     if member_of (match_pos cell) cells then
         get_row_members cells cell
