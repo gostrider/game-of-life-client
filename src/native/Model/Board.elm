@@ -58,7 +58,7 @@ board_update action board =
                     Result.withDefault [] decode_message
 
                 cells_ =
-                    replace_multiple board.cells pending_ |> reorder
+                    replace_multiple_ board.cells pending_ |> reorder
             in
                 ( { board | status = message_, pending = pending_, cells = cells_ }
                 , Cmd.none
@@ -95,7 +95,7 @@ board_update action board =
                             cells_update board.cells cell_
 
                         pending_ =
-                            pend_cell board.pending cell_
+                            append_cell board.pending cell_
                     in
                         ( { board | cell = current, cells = cells_, pending = pending_ }, Cmd.none )
 
@@ -105,23 +105,123 @@ ws_send =
     send "ws://localhost:8001/ws/test"
 
 
+
+-- Cell operations
+
+
 cells_update : List (List Cell) -> Cell -> List (List Cell)
-cells_update =
-    cells_update_ []
+cells_update cells cell =
+    let
+        by : List Cell -> List (List Cell) -> List (List Cell)
+        by cell_ =
+            (::) (replace_cell cell_ cell |> List.sortBy C.x_)
+    in
+        List.foldl by [] cells |> List.reverse
 
 
-cells_update_ : List (List Cell) -> List (List Cell) -> Cell -> List (List Cell)
-cells_update_ acc cells cell =
-    case cells of
+replace_multiple_ : List (List Cell) -> List Cell -> List (List Cell)
+replace_multiple_ origin_cells mutate_cells =
+    case mutate_cells of
         [] ->
-            List.reverse acc
+            origin_cells
 
-        cs :: css ->
+        m_cell :: m_cells ->
             let
-                row =
-                    replace_cell cs cell |> List.sortBy C.x_
+                mutate_row : Cell -> ( List (List Cell), List (List Cell) )
+                mutate_row =
+                    get_x_y_members origin_cells
+
+                mutate_members : ( List (List Cell), List (List Cell) ) -> List Cell
+                mutate_members =
+                    flip append_cell m_cell << U.flatten << Tuple.first
+
+                alive_members : List Cell -> ( List Cell, List Cell )
+                alive_members =
+                    List.partition ((==) "O" << C.alive_)
+
+                new_row : ( List Cell, List Cell ) -> List Cell
+                new_row =
+                    flip join_cells m_cell
+
+                run : Cell -> List Cell
+                run =
+                    new_row << alive_members << mutate_members << mutate_row
+
+                elements : List (List Cell)
+                elements =
+                    (run m_cell) :: (m_cell |> Tuple.second << mutate_row)
             in
-                cells_update_ (row :: acc) css cell
+                replace_multiple_ elements m_cells
+
+
+mutate_cells : List Cell -> List Cell
+mutate_cells cells =
+    let
+        f_alive : Cell -> Cell
+        f_alive c =
+            C.alive__ (U.flip "X" "O" (C.alive_ c)) c
+
+        f_color : Cell -> Cell
+        f_color c =
+            C.color__ (U.flip "grey" "red" (C.color_ c)) c
+
+        element : Cell -> List Cell -> List Cell
+        element cell =
+            (::) (cell |> f_color << f_alive)
+    in
+        List.foldl element [] cells
+
+
+traverse_cells : Int -> Int -> List (List Cell) -> Cell -> Cell
+traverse_cells x y cells default =
+    let
+        by : List Cell -> List Cell -> List Cell
+        by cs _ =
+            List.filter (match_x_y x y) cs
+
+        found : Maybe Cell
+        found =
+            List.foldl by [] cells |> List.head
+    in
+        Maybe.withDefault default found
+
+
+
+-- Boolean combinator
+
+
+match_x_y : Int -> Int -> Cell -> Bool
+match_x_y x y cell =
+    (C.x_ cell == x) && (C.y_ cell == y)
+
+
+match_pos : Cell -> Cell -> Bool
+match_pos cell1 cell2 =
+    C.pos_ cell1 == C.pos_ cell2
+
+
+match_x_or_y : Cell -> Cell -> Bool
+match_x_or_y cell1 cell2 =
+    (C.y_ cell1 == C.y_ cell2) || (C.x_ cell1 == C.x_ cell2)
+
+
+
+-- List combinator
+
+
+fmapBool : (a -> Bool) -> Maybe a -> Bool
+fmapBool f x =
+    Maybe.withDefault False (Maybe.map f x)
+
+
+any_x_y : Cell -> List Cell -> Bool
+any_x_y cell =
+    fmapBool (match_x_or_y cell) << List.head
+
+
+member_of : (a -> Bool) -> List a -> Bool
+member_of f cells =
+    List.any f cells
 
 
 reorder : List (List Cell) -> List (List Cell)
@@ -129,117 +229,42 @@ reorder cells =
     List.sortBy (List.map C.y_) cells
 
 
-replace_multiple : List (List Cell) -> List Cell -> List (List Cell)
-replace_multiple cells cells_ =
-    case cells_ of
-        [] ->
-            cells
-
-        c_ :: cs_ ->
-            let
-                match_row =
-                    List.partition (flip (fmap (match_row_or_column c_)) False << List.head) cells
-
-                member =
-                    Tuple.first match_row |> flip pend_cell c_ << U.flatten
-
-                p_member =
-                    List.partition (\x -> C.alive_ x == "O") member
-
-                new_cells =
-                    c_ :: (Tuple.first p_member |> change_cell []) ++ (Tuple.second p_member) |> List.sortBy C.x_
-
-                elements =
-                    new_cells :: (Tuple.second match_row)
-            in
-                replace_multiple elements cs_
+get_row_members : List Cell -> Cell -> List Cell
+get_row_members cells cell =
+    List.filter (not << (match_pos cell)) cells
 
 
-change_cell : List Cell -> List Cell -> List Cell
-change_cell acc cells =
-    case cells of
-        [] ->
-            acc
-
-        c :: cs ->
-            let
-                flip_alive =
-                    c |> U.flip "X" "O" << C.alive_
-
-                flip_color =
-                    c |> U.flip "grey" "red" << C.color_
-
-                element =
-                    c |> C.alive__ flip_alive << C.color__ flip_color
-            in
-                change_cell (element :: acc) cs
+get_x_y_members :
+    List (List Cell)
+    -> Cell
+    -> ( List (List Cell), List (List Cell) )
+get_x_y_members cells cell =
+    List.partition (any_x_y cell) cells
 
 
-match_pos : Cell -> Cell -> Bool
-match_pos c1 c2 =
-    C.pos_ c1 == C.pos_ c2
+join_cells : ( List Cell, List Cell ) -> Cell -> List Cell
+join_cells mutate_and_remain cell =
+    cell
+        :: (mutate_and_remain |> mutate_cells << Tuple.first)
+        ++ (mutate_and_remain |> Tuple.second)
+        |> List.sortBy C.x_
 
 
-member_of : Cell -> List Cell -> (Cell -> Cell -> Bool) -> Bool
-member_of cell cells f =
-    case cells of
-        [] ->
-            False
 
-        c :: cs ->
-            if f c cell then
-                True
-            else
-                member_of cell cs f
-
-
-fmap f x =
-    flip Maybe.withDefault (Maybe.map f x)
-
-
-match_row_or_column : Cell -> Cell -> Bool
-match_row_or_column cell1 cell2 =
-    (C.y_ cell1 == C.y_ cell2) || (C.x_ cell1 == C.x_ cell2)
-
-
-find_distinct_cell : Cell -> List Cell -> List Cell
-find_distinct_cell c cs =
-    List.filter (not << (match_pos c)) cs
+-- Control flow
 
 
 replace_cell : List Cell -> Cell -> List Cell
 replace_cell cells cell =
-    if member_of cell cells match_pos then
-        cell :: find_distinct_cell cell cells
+    if member_of (match_pos cell) cells then
+        cell :: get_row_members cells cell
     else
         cells
 
 
-pend_cell : List Cell -> Cell -> List Cell
-pend_cell cells cell =
-    if member_of cell cells match_pos then
-        find_distinct_cell cell cells
+append_cell : List Cell -> Cell -> List Cell
+append_cell cells cell =
+    if member_of (match_pos cell) cells then
+        get_row_members cells cell
     else
         cell :: cells
-
-
-traverse_cells : Int -> Int -> List (List Cell) -> Cell -> Cell
-traverse_cells x y cells default =
-    case cells of
-        [] ->
-            default
-
-        cs :: css ->
-            let
-                find_pos x y c =
-                    C.x_ c == x && C.y_ c == y
-            in
-                case List.filter (find_pos x y) cs of
-                    [] ->
-                        traverse_cells x y css default
-
-                    [ c ] ->
-                        c
-
-                    _ ->
-                        default

@@ -79,9 +79,6 @@ init_column acc count_x count_y =
 
         _ ->
             let
---                id =
---                    toString count_x ++ toString count_y
-
                 element =
                     Cell count_x count_y "X" "grey"
             in
@@ -89,7 +86,7 @@ init_column acc count_x count_y =
 
 
 
--- Lenses
+-- selector
 
 
 x_ : Cell -> Int
