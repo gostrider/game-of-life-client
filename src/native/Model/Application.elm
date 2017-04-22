@@ -22,7 +22,11 @@ type Action
 
 init : ( Application, Cmd Action )
 init =
-    Application Board.init ! []
+    let
+        ( board_init, board_eff ) =
+            Board.init
+    in
+        Application board_init ! [ Cmd.map UpdateBoard board_eff ]
 
 
 update : Action -> Application -> ( Application, Cmd Action )

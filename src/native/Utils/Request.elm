@@ -3,6 +3,12 @@ module Utils.Request exposing (..)
 import Json.Decode as De
 import Json.Encode as En
 import Model.Cell exposing (Cell)
+import Matrix as M
+import Array as A
+
+
+-- Encode operations
+
 
 query : String -> En.Value
 query action =
@@ -12,34 +18,44 @@ query action =
 change : List Cell -> En.Value
 change cells =
     let
-        cell_position =
-            Model.Cell.pos_
-
-        encoder cell =
-            En.object
-                [ ( "x", cell |> cell_position >> Tuple.first >> En.int )
-                , ( "y", cell |> cell_position >> Tuple.second >> En.int )
-                ]
+        encode_cells =
+            En.list << List.map encode_position
     in
         En.object
             [ ( "action", En.string "change" )
-            , ( "cell", En.list (List.map encoder cells) )
+            , ( "cell", encode_cells cells )
             ]
 
 
-tuple2 : (a -> En.Value) -> (b -> En.Value) -> ( a, b ) -> En.Value
-tuple2 enc1 enc2 ( val1, val2 ) =
-    En.list [ enc1 val1, enc2 val2 ]
+encode_position : Cell -> En.Value
+encode_position cell =
+    En.object
+        [ ( "x", cell.position |> M.row >> En.int )
+        , ( "y", cell.position |> M.col >> En.int )
+        ]
 
 
+
+-- Decode operations
+
+
+decode_cells : String -> Result String (List Cell)
 decode_cells =
-    De.decodeString (De.field "result" decode_cell)
+    De.decodeString
+        (De.field "result" decode_cell)
 
 
+decode_cell : De.Decoder (List Cell)
 decode_cell =
     De.list <|
-        De.map4 Cell
-            (De.field "x" De.int)
-            (De.field "y" De.int)
+        De.map3 Cell
+            decode_position
             (De.field "alive" De.string)
             (De.field "color" De.string)
+
+
+decode_position : De.Decoder M.Location
+decode_position =
+    De.map2 M.loc
+        (De.field "x" De.int)
+        (De.field "y" De.int)
