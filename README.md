@@ -27,6 +27,10 @@ To download project required elm packages
 To build project  
 `elm-make src/native/Main.elm --output index.html`
 
+If any error indicate library syntax mismatch, please run  
+
+`rm -r elm-stuff && elm-package install`
+
 
 ## Description:
 
