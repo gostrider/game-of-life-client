@@ -4,7 +4,6 @@ import Json.Decode as De
 import Json.Encode as En
 import Model.Cell exposing (Cell)
 import Matrix as M
-import Array as A
 
 
 -- Encode operations
@@ -15,15 +14,15 @@ query action =
     En.object [ ( "action", En.string action ) ]
 
 
-change : List Cell -> En.Value
-change cells =
+activity : String -> List Cell -> En.Value
+activity action cells =
     let
         encode_cells =
             En.list << List.map encode_position
     in
         En.object
-            [ ( "action", En.string "change" )
-            , ( "cell", encode_cells cells )
+            [ ( "action", En.string action )
+            , ( "cells", encode_cells cells )
             ]
 
 
@@ -32,6 +31,8 @@ encode_position cell =
     En.object
         [ ( "x", cell.position |> M.row >> En.int )
         , ( "y", cell.position |> M.col >> En.int )
+        , ( "alive", En.string cell.alive )
+        , ( "color", En.string cell.color )
         ]
 
 
@@ -39,19 +40,36 @@ encode_position cell =
 -- Decode operations
 
 
-decode_cells : String -> Result String (List Cell)
-decode_cells =
+decode_result : String -> Result String (List Cell)
+decode_result =
     De.decodeString
-        (De.field "result" decode_cell)
+        (De.field "action" De.string |> De.andThen decode_action)
+
+
+decode_action : String -> De.Decoder (List Cell)
+decode_action action =
+    case action of
+        "activity" ->
+            De.field "cells" decode_cell
+
+        "result" ->
+            De.field "cells" decode_cell
+
+        "query" ->
+            De.field "cells" decode_cell
+
+        _ ->
+            De.fail "unknown_event"
 
 
 decode_cell : De.Decoder (List Cell)
 decode_cell =
-    De.list <|
-        De.map3 Cell
+    De.list
+        (De.map3 Cell
             decode_position
             (De.field "alive" De.string)
             (De.field "color" De.string)
+        )
 
 
 decode_position : De.Decoder M.Location

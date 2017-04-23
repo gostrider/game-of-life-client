@@ -5,8 +5,7 @@ import WebSocket exposing (send)
 import Matrix as M
 import Model.Cell as C exposing (Cell, CellAction)
 import Utils.Request as Request
-import Utils.Utils as U
-import Task
+import Utils.Utils exposing (if_else)
 
 
 type alias CellMatrix =
@@ -37,7 +36,7 @@ init : ( Board, Cmd BoardAction )
 init =
     let
         scale =
-            20
+            5
 
         cell =
             C.init ( 0, 0 )
@@ -51,60 +50,44 @@ init =
 board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
 board_update action board =
     case action of
-        UpdateCell cellAction ->
-            case cellAction of
-                C.Update x y ->
-                    let
-                        curr_pos =
-                            M.loc x y
+        UpdateCell (C.Update x y) ->
+            let
+                curr_pos =
+                    M.loc x y
 
-                        get_current =
-                            flip M.get board.cells
+                cell_ =
+                    curr_pos
+                        |> flip M.get board.cells
+                        |> Maybe.withDefault (C.init curr_pos)
+                        |> C.cell_update (C.Update x y)
 
-                        drop_current =
-                            Maybe.withDefault (C.init curr_pos)
+                cells_ =
+                    update_cell curr_pos board.cells cell_
 
-                        mutate_cell =
-                            C.cell_update cellAction
+                pending_ =
+                    tri_map board.pending cell_
 
-                        cell_ =
-                            curr_pos |> mutate_cell << drop_current << get_current
-
-                        cells_ =
-                            update_cell curr_pos board.cells cell_
-
-                        pending_ =
-                            tri_map board.pending cell_
-                    in
-                        ( { board
-                            | cells = cells_
-                            , pending = pending_
-                          }
-                        , Cmd.none
-                        )
+                payload =
+                    encode 0 (Request.activity "activity" pending_)
+            in
+                ( { board | cells = cells_, pending = pending_ }, ws_send payload )
 
         Incoming message_ ->
             let
                 decode_message =
-                    Request.decode_cells message_
-
-                result =
-                    Result.withDefault [] decode_message
+                    message_
+                        |> Request.decode_result
+                        |> Result.withDefault []
 
                 cells_ =
-                    render_result board.scale result board.cell
+                    render_result board.scale decode_message board.cell
             in
-                ( { board
-                    | cells = cells_
-                    , pending = result
-                  }
-                , Cmd.none
-                )
+                ( { board | cells = cells_, pending = decode_message }, Cmd.none )
 
         Send ->
             let
                 payload =
-                    encode 0 (Request.change board.pending)
+                    encode 0 (Request.activity "change" board.pending)
             in
                 ( board, ws_send payload )
 
@@ -178,7 +161,7 @@ remove_cell cells cell =
 
 tri_map : Cells -> Cell -> Cells
 tri_map x1 x2 =
-    U.if_else
+    if_else
         (any_cell x1 x2)
         (remove_cell x1 x2)
         (append_cell x1 x2)
