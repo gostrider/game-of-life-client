@@ -9,19 +9,28 @@ import Matrix as M
 -- Encode operations
 
 
-query : String -> En.Value
-query action =
-    En.object [ ( "action", En.string action ) ]
+encode_zero : En.Value -> String
+encode_zero =
+    En.encode 0
 
 
-activity : String -> List Cell -> En.Value
-activity action cells =
+query : String -> String -> En.Value
+query action color =
+    En.object
+        [ ( "color", En.string color )
+        , ( "action", En.string action )
+        ]
+
+
+activity : String -> String -> List Cell -> En.Value
+activity action color cells =
     let
         encode_cells =
             En.list << List.map encode_cell
     in
         En.object
-            [ ( "action", En.string action )
+            [ ( "color", En.string color )
+            , ( "action", En.string action )
             , ( "cells", encode_cells cells )
             ]
 
@@ -47,24 +56,17 @@ tuple_to_list ( a, b ) =
 
 decode_result : String -> Result String (List Cell)
 decode_result =
-    De.decodeString
-        (De.field "action" De.string |> De.andThen decode_action)
+    De.decodeString (De.field "cells" decode_cell)
 
 
-decode_action : String -> De.Decoder (List Cell)
-decode_action action =
-    case action of
-        "activity" ->
-            De.field "cells" decode_cell
+decode_action : String -> Result String String
+decode_action =
+    De.decodeString (De.field "action" De.string)
 
-        "result" ->
-            De.field "cells" decode_cell
 
-        "query" ->
-            De.field "cells" decode_cell
-
-        _ ->
-            De.fail "unknown_event"
+decode_color : String -> Result String String
+decode_color =
+    De.decodeString (De.field "color" De.string)
 
 
 decode_cell : De.Decoder (List Cell)

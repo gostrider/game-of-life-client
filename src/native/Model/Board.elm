@@ -4,8 +4,9 @@ import Json.Encode exposing (encode)
 import WebSocket exposing (send)
 import Matrix as M
 import Random as R
+import Set as S
 import Model.Cell as C exposing (Cell, CellAction)
-import Utils.Request as Request
+import Utils.Request as Req
 import Utils.Utils exposing (if_else)
 
 
@@ -49,10 +50,76 @@ init =
 board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
 board_update action board =
     case action of
+        CreateColor color_ ->
+            let
+                str_color =
+                    to_rgb color_
+
+                cells_ =
+                    M.square board.scale (C.init str_color)
+            in
+                ( { board | cells = cells_, gen_color = str_color, status = str_color }, Cmd.none )
+
+        Reset ->
+            let
+                payload =
+                    Req.encode_zero (Req.query "reset" board.gen_color)
+
+                ( board_init, board_effect ) =
+                    init
+            in
+                board_init
+                    ! [ ws_send payload
+                      , board_effect
+                      ]
+
+        Send ->
+            let
+                payload =
+                    Req.encode_zero (Req.activity "change" board.gen_color board.pending)
+            in
+                ( board, ws_send payload )
+
+        Incoming message_ ->
+            let
+                decode_message =
+                    message_
+                        |> Req.decode_result
+                        |> Result.withDefault []
+
+                event =
+                    message_
+                        |> Req.decode_action
+                        |> Result.withDefault ""
+
+                cells_ =
+                    render_result board decode_message
+            in
+                case event of
+                    "result" ->
+                        ( { board | cells = cells_, pending = decode_message }, Cmd.none )
+
+                    "activity" ->
+                        let
+                            pending_ =
+                                remove_repeated decode_message
+                        in
+                            ( { board | cells = cells_, pending = pending_ }, Cmd.none )
+
+                    "reset" ->
+                        let
+                            ( board_init, board_effect ) =
+                                init
+                        in
+                            board_init ! [ board_effect ]
+
+                    _ ->
+                        ( board, Cmd.none )
+
         UpdateCell (C.Update x y) ->
             let
                 curr_pos =
-                    M.loc x y
+                    ( x, y )
 
                 cell_ =
                     curr_pos
@@ -64,64 +131,12 @@ board_update action board =
                     update_cell curr_pos board.cells cell_
 
                 pending_ =
-                    tri_map board.pending cell_
+                    upsert board.pending cell_
 
                 payload =
-                    encode 0 (Request.activity "activity" pending_)
+                    Req.encode_zero (Req.activity "activity" board.gen_color pending_)
             in
                 ( { board | cells = cells_, pending = pending_ }, ws_send payload )
-
-        Incoming message_ ->
-            let
-                decode_message =
-                    message_
-                        |> Request.decode_result
-                        |> Result.withDefault []
-
-                cells_ =
-                    render_result board.scale decode_message
-            in
-                Debug.log (message_)
-                    ( { board | cells = cells_, pending = decode_message }, Cmd.none )
-
-        Send ->
-            let
-                payload =
-                    encode 0 (Request.activity "change" board.pending)
-            in
-                ( board, ws_send payload )
-
-        Reset ->
-            let
-                payload =
-                    encode 0 (Request.query "reset")
-
-                ( board_init, board_effect ) =
-                    init
-            in
-                board_init
-                    ! [ ws_send payload
-                      , board_effect
-                      ]
-
-        CreateColor color_ ->
-            let
-                by r acc =
-                    toString r ++ "," ++ acc
-
-                to_rgb =
-                    List.foldr by ""
-                        >> (++) "rgb("
-                        >> String.dropRight 1
-                        >> flip (++) ")"
-
-                str_color =
-                    to_rgb color_
-
-                cells_ =
-                    M.square board.scale (C.init str_color)
-            in
-                ( { board | cells = cells_, gen_color = str_color, status = str_color }, Cmd.none )
 
 
 ws_send : String -> Cmd BoardAction
@@ -133,14 +148,40 @@ ws_send =
 -- Board logic
 
 
+to_rgb : List Int -> String
+to_rgb =
+    List.foldr (\color acc -> toString color ++ "," ++ acc) ""
+        >> (++) "rgb("
+        >> String.dropRight 1
+        >> flip (++) ")"
+
+
 gen_color : Cmd BoardAction
 gen_color =
     R.generate CreateColor (R.list 3 (R.int 0 255))
 
 
-render_result : Int -> Cells -> CellMatrix
-render_result scale cells =
-    replace_cell (M.square scale (C.init "rgb(255,255,255)")) cells
+remove_repeated : Cells -> Cells
+remove_repeated =
+    remove_repeated_ []
+
+
+remove_repeated_ : Cells -> Cells -> Cells
+remove_repeated_ acc cells =
+    case cells of
+        [] ->
+            acc
+
+        c :: cs ->
+            if any_cell cs c then
+                remove_repeated_ acc cs
+            else
+                remove_repeated_ (c :: acc) cs
+
+
+render_result : Board -> Cells -> CellMatrix
+render_result board cells =
+    replace_cell (M.square board.scale (C.init board.gen_color)) cells
 
 
 replace_cell : CellMatrix -> Cells -> CellMatrix
@@ -186,8 +227,8 @@ remove_cell cells cell =
     List.filter (not << (match_position cell)) cells
 
 
-tri_map : Cells -> Cell -> Cells
-tri_map x1 x2 =
+upsert : Cells -> Cell -> Cells
+upsert x1 x2 =
     if_else
         (any_cell x1 x2)
         (remove_cell x1 x2)

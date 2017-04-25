@@ -1,7 +1,7 @@
 module View.Board exposing (..)
 
 import Html exposing (Html, div, button, br, h1, table, text)
-import Html.Attributes exposing (align)
+import Html.Attributes exposing (align, style)
 import Html.Events exposing (onClick)
 import Model.Board exposing (Board, BoardAction(UpdateCell, Reset, Send))
 import View.Cell exposing (draw_row)
@@ -21,6 +21,6 @@ board_view board =
                 , button [ onClick Send ] [ text "Start" ]
                 , br [] []
                 , br [] []
-                , text board.status
+                , div [ style [ ( "background-color", board.gen_color ) ] ] [ text board.status ]
                 ]
             ]
