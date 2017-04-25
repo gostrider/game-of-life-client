@@ -1,14 +1,8 @@
-module Model.Application
-    exposing
-        ( Application
-        , Action(..)
-        , init
-        , update
-        , subscriptions
-        )
+module Model.Application exposing (..)
 
 import Model.Board as Board exposing (Board, BoardAction, board_update)
 import WebSocket exposing (listen)
+import Time exposing (every, second, minute)
 
 
 type alias Application =
@@ -44,8 +38,12 @@ subscriptions : Application -> Sub Action
 subscriptions app =
     let
         subscribeBoard =
-            listen "ws://localhost:8001/ws/test" Board.Incoming
+            listen "ws://localhost:8001/ws/game" Board.Incoming
+
+        -- timed_effect =
+        --     every (30 * second) Board.TimedSend
     in
         Sub.batch
             [ Sub.map UpdateBoard subscribeBoard
+              -- , Sub.map UpdateBoard timed_effect
             ]

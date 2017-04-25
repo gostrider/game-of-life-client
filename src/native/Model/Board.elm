@@ -4,7 +4,7 @@ import Json.Encode exposing (encode)
 import WebSocket exposing (send)
 import Matrix as M
 import Random as R
-import Set as S
+import Time exposing (Time)
 import Model.Cell as C exposing (Cell, CellAction)
 import Utils.Request as Req
 import Utils.Utils exposing (if_else)
@@ -28,18 +28,23 @@ type alias Board =
 
 
 type BoardAction
-    = Send
-    | Reset
+    = Reset
+    | Send
     | Incoming String
     | UpdateCell CellAction
     | CreateColor (List Int)
+    | UpdateScale String
+
+
+
+-- | TimedSend Time
 
 
 init : ( Board, Cmd BoardAction )
 init =
     let
         scale =
-            5
+            0
 
         cells =
             M.square 1 (C.init "")
@@ -73,6 +78,16 @@ board_update action board =
                       , board_effect
                       ]
 
+        UpdateScale scale_ ->
+            let
+                scale_int =
+                    Result.withDefault 0 (String.toInt scale_)
+
+                cells_ =
+                    M.square scale_int (C.init board.gen_color)
+            in
+                ( { board | cells = cells_, scale = scale_int }, Cmd.none )
+
         Send ->
             let
                 payload =
@@ -80,6 +95,12 @@ board_update action board =
             in
                 ( board, ws_send payload )
 
+        -- TimedSend _ ->
+        --     let
+        --         payload =
+        --             Req.encode_zero (Req.activity "change" board.gen_color board.pending)
+        --     in
+        --         ( board, ws_send payload )
         Incoming message_ ->
             let
                 decode_message =
@@ -141,7 +162,7 @@ board_update action board =
 
 ws_send : String -> Cmd BoardAction
 ws_send =
-    send "ws://localhost:8001/ws/test"
+    send "ws://localhost:8001/ws/game"
 
 
 
