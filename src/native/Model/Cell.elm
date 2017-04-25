@@ -6,8 +6,8 @@ import Utils.Utils as U
 
 type alias Cell =
     { position : M.Location
-    , alive : String
-    , color : String
+    , alive : ( String, String )
+    , color : ( String, String )
     }
 
 
@@ -15,20 +15,24 @@ type CellAction
     = Update Int Int
 
 
-init : M.Location -> Cell
-init pos =
-    Cell pos "X" "white"
+init : String -> M.Location -> Cell
+init color pos =
+    let
+        default_alive =
+            ( "X", "O" )
+
+        default_color =
+            ( "rgb(255,255,255)", color )
+    in
+        Cell pos default_alive default_color
 
 
 cell_update : CellAction -> Cell -> Cell
 cell_update action cell =
     case action of
         Update x_ y_ ->
-            let
-                f_alive =
-                    U.flip "X" "O" cell.alive
-
-                f_color =
-                    U.flip "white" "red" cell.color
-            in
-                { cell | position = M.loc x_ y_, alive = f_alive, color = f_color }
+            { cell
+                | position = ( x_, y_ )
+                , alive = U.flip_tuple cell.alive
+                , color = U.flip_tuple cell.color
+            }

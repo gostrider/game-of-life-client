@@ -18,7 +18,7 @@ activity : String -> List Cell -> En.Value
 activity action cells =
     let
         encode_cells =
-            En.list << List.map encode_position
+            En.list << List.map encode_cell
     in
         En.object
             [ ( "action", En.string action )
@@ -26,14 +26,19 @@ activity action cells =
             ]
 
 
-encode_position : Cell -> En.Value
-encode_position cell =
+encode_cell : Cell -> En.Value
+encode_cell cell =
     En.object
         [ ( "x", cell.position |> M.row >> En.int )
         , ( "y", cell.position |> M.col >> En.int )
-        , ( "alive", En.string cell.alive )
-        , ( "color", En.string cell.color )
+        , ( "alive", tuple_to_list cell.alive )
+        , ( "color", tuple_to_list cell.color )
         ]
+
+
+tuple_to_list : ( String, String ) -> En.Value
+tuple_to_list ( a, b ) =
+    En.list [ En.string a, En.string b ]
 
 
 
@@ -67,8 +72,8 @@ decode_cell =
     De.list
         (De.map3 Cell
             decode_position
-            (De.field "alive" De.string)
-            (De.field "color" De.string)
+            (from_list "alive")
+            (from_list "color")
         )
 
 
@@ -77,3 +82,10 @@ decode_position =
     De.map2 M.loc
         (De.field "x" De.int)
         (De.field "y" De.int)
+
+
+from_list : String -> De.Decoder ( String, String )
+from_list name =
+    De.map2 (,)
+        (De.field name (De.index 0 De.string))
+        (De.field name (De.index 1 De.string))

@@ -3,6 +3,7 @@ module Model.Board exposing (..)
 import Json.Encode exposing (encode)
 import WebSocket exposing (send)
 import Matrix as M
+import Random as R
 import Model.Cell as C exposing (Cell, CellAction)
 import Utils.Request as Request
 import Utils.Utils exposing (if_else)
@@ -18,10 +19,10 @@ type alias Cells =
 
 type alias Board =
     { scale : Int
-    , cell : Cell
-    , cells : CellMatrix
-    , pending : Cells
     , status : String
+    , gen_color : String
+    , pending : Cells
+    , cells : CellMatrix
     }
 
 
@@ -30,6 +31,7 @@ type BoardAction
     | Reset
     | Incoming String
     | UpdateCell CellAction
+    | CreateColor (List Int)
 
 
 init : ( Board, Cmd BoardAction )
@@ -38,13 +40,10 @@ init =
         scale =
             5
 
-        cell =
-            C.init ( 0, 0 )
-
         cells =
-            M.square scale C.init
+            M.square 1 (C.init "")
     in
-        ( Board scale cell cells [] "", Cmd.none )
+        ( Board scale "" "" [] cells, gen_color )
 
 
 board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
@@ -58,7 +57,7 @@ board_update action board =
                 cell_ =
                     curr_pos
                         |> flip M.get board.cells
-                        |> Maybe.withDefault (C.init curr_pos)
+                        |> Maybe.withDefault (C.init board.gen_color curr_pos)
                         |> C.cell_update (C.Update x y)
 
                 cells_ =
@@ -80,9 +79,10 @@ board_update action board =
                         |> Result.withDefault []
 
                 cells_ =
-                    render_result board.scale decode_message board.cell
+                    render_result board.scale decode_message
             in
-                ( { board | cells = cells_, pending = decode_message }, Cmd.none )
+                Debug.log (message_)
+                    ( { board | cells = cells_, pending = decode_message }, Cmd.none )
 
         Send ->
             let
@@ -96,10 +96,32 @@ board_update action board =
                 payload =
                     encode 0 (Request.query "reset")
 
-                ( board_init, _ ) =
+                ( board_init, board_effect ) =
                     init
             in
-                ( board_init, ws_send payload )
+                board_init
+                    ! [ ws_send payload
+                      , board_effect
+                      ]
+
+        CreateColor color_ ->
+            let
+                by r acc =
+                    toString r ++ "," ++ acc
+
+                to_rgb =
+                    List.foldr by ""
+                        >> (++) "rgb("
+                        >> String.dropRight 1
+                        >> flip (++) ")"
+
+                str_color =
+                    to_rgb color_
+
+                cells_ =
+                    M.square board.scale (C.init str_color)
+            in
+                ( { board | cells = cells_, gen_color = str_color, status = str_color }, Cmd.none )
 
 
 ws_send : String -> Cmd BoardAction
@@ -108,12 +130,17 @@ ws_send =
 
 
 
--- cell operations
+-- Board logic
 
 
-render_result : Int -> Cells -> Cell -> CellMatrix
-render_result scale cells cell =
-    replace_cell (M.square scale C.init) cells
+gen_color : Cmd BoardAction
+gen_color =
+    R.generate CreateColor (R.list 3 (R.int 0 255))
+
+
+render_result : Int -> Cells -> CellMatrix
+render_result scale cells =
+    replace_cell (M.square scale (C.init "rgb(255,255,255)")) cells
 
 
 replace_cell : CellMatrix -> Cells -> CellMatrix

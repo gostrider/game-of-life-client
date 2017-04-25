@@ -13,13 +13,13 @@ cell_view : Cell -> Html CellAction
 cell_view cell =
     let
         css =
-            style [ ( "background-color", cell.color ) ]
+            style [ ( "background-color", Tuple.first cell.color ) ]
 
         action =
             onClick
                 (Update (M.row cell.position) (M.col cell.position))
     in
-        td [ css, action ] [ text cell.alive ]
+        td [ css, action ] [ cell.alive |> text << Tuple.first ]
 
 
 draw_row : CellMatrix -> Html CellAction
