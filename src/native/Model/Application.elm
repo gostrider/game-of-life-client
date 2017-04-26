@@ -1,8 +1,12 @@
 module Model.Application exposing (..)
 
-import Model.Board as Board exposing (Board, BoardAction, board_update)
 import WebSocket exposing (listen)
 import Time exposing (every, second, minute)
+
+
+-- Application modules
+
+import Model.Board as Board exposing (Board, BoardAction, board_update)
 
 
 type alias Application =
@@ -40,12 +44,10 @@ subscriptions app =
         subscribeBoard =
             listen "ws://localhost:8001/ws/game" Board.Incoming
 
-        -- timed_effect =
-        --     every (30 * second) Board.TimedSend
+        timed_effect =
+            every second Board.TimedSend
     in
         Sub.batch
             [ Sub.map UpdateBoard subscribeBoard
-              -- counter -- by every tick
-              -- view chk counter == 0 display loose
-              -- , Sub.map UpdateBoard timed_effect
+            , Sub.map UpdateBoard timed_effect
             ]

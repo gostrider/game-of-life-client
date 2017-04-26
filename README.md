@@ -48,8 +48,6 @@ This project follows [TEA](https://guide.elm-lang.org/architecture/) architectur
 - User able to reset the game
 - User able to receive the next cells based on selected cells
 - Multiple users are able to view the synchronise clock of the game
-
-## TODO features:
 - Render game server results and show on the grid
 - User able to see different colors on the grid
 - User has their own represent color

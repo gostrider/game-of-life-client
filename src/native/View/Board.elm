@@ -3,6 +3,10 @@ module View.Board exposing (..)
 import Html exposing (Html, div, button, br, h1, input, table, text)
 import Html.Attributes exposing (align, type_, style)
 import Html.Events exposing (onClick, onInput)
+
+
+-- Application modules
+
 import Model.Board exposing (Board, BoardAction(..))
 import View.Cell exposing (draw_row)
 import View.UserConfig exposing (config_view)

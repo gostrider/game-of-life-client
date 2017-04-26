@@ -35,6 +35,7 @@ type alias Board =
     , pending : Cells
     , cells : CellMatrix
     , user_config : Config
+    , running : Bool
     }
 
 
@@ -60,7 +61,7 @@ init =
         config =
             User.init
     in
-        ( Board scale "" "" 0 [] cells config, gen_color )
+        ( Board scale "" "" 0 [] cells config False, gen_color )
 
 
 board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
@@ -94,23 +95,17 @@ board_update action board =
                 payload =
                     Req.encode_zero (Req.activity "change" board.gen_color board.pending)
             in
-                ( board, ws_send payload )
+                ( { board | running = True }, ws_send payload )
 
         TimedSend t ->
             let
-                payload =
-                    Req.encode_zero (Req.activity "change" board.gen_color board.pending)
-
-                count =
-                    board.countdown - 1
-
-                timer =
-                    if count == 0 then
-                        "0"
+                fire =
+                    if board.running then
+                        Req.encode_zero (Req.activity "change" board.gen_color board.pending) |> ws_send
                     else
-                        toString count
+                        Cmd.none
             in
-                ( { board | countdown = count, status = timer }, Cmd.none )
+                ( board, fire )
 
         Incoming message_ ->
             let
@@ -216,6 +211,9 @@ generate_template name default =
 
         "glider" ->
             replace_cell default Tmp.glider
+
+        "unbounded_growth" ->
+            replace_cell default Tmp.unbounded_growth
 
         _ ->
             default

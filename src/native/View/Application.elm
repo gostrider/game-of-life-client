@@ -1,6 +1,10 @@
 module View.Application exposing (app_view)
 
 import Html as Html exposing (Html)
+
+
+-- Application modules
+
 import Model.Application exposing (Application, Action(UpdateBoard))
 import View.Board exposing (board_view)
 

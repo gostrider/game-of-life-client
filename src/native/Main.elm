@@ -1,6 +1,10 @@
 module Main exposing (main)
 
 import Html exposing (program)
+
+
+-- Application modules
+
 import Model.Application as App exposing (Application, Action)
 import View.Application exposing (app_view)
 

@@ -7,6 +7,7 @@ type alias Config =
     { size : Int
     , count : Int
     , pattern : String
+    , start : Bool
     }
 
 
@@ -18,14 +19,14 @@ type ConfigUpdate
 
 init : Config
 init =
-    Config 0 10 ""
+    Config 0 10 "" False
 
 
 config_update : ConfigUpdate -> Config -> Config
 config_update action config =
     case action of
         Size s ->
-            { config | size = defaultInt s }
+            { config | size = defaultInt s, start = True }
 
         Count c ->
             { config | count = defaultInt c }

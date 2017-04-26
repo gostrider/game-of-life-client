@@ -3,10 +3,14 @@ module View.Cell exposing (..)
 import Html exposing (Html, td, tr, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
-import Model.Cell as C exposing (Cell, CellAction(..))
-import Model.Board exposing (CellMatrix)
 import Matrix as M
 import Array as A
+
+
+-- Application modules
+
+import Model.Cell as C exposing (Cell, CellAction(..))
+import Model.Board exposing (CellMatrix)
 
 
 cell_view : Cell -> Html CellAction

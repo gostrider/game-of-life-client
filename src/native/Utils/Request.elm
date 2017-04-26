@@ -2,8 +2,12 @@ module Utils.Request exposing (..)
 
 import Json.Decode as De
 import Json.Encode as En
-import Model.Cell exposing (Cell)
 import Matrix as M
+
+
+-- Application modules
+
+import Model.Cell exposing (Cell)
 
 
 -- Encode operations
