@@ -45,5 +45,7 @@ subscriptions app =
     in
         Sub.batch
             [ Sub.map UpdateBoard subscribeBoard
+              -- counter -- by every tick
+              -- view chk counter == 0 display loose
               -- , Sub.map UpdateBoard timed_effect
             ]

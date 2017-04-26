@@ -1,13 +1,22 @@
 module Model.Board exposing (..)
 
+-- Core Library
+
 import Json.Encode exposing (encode)
 import WebSocket exposing (send)
 import Matrix as M
 import Random as R
 import Time exposing (Time)
+import Date exposing (fromTime, second)
+
+
+-- Application modules
+
 import Model.Cell as C exposing (Cell, CellAction)
+import Model.UserConfig as User exposing (Config, ConfigUpdate)
 import Utils.Request as Req
 import Utils.Utils exposing (if_else)
+import Utils.Template as Tmp
 
 
 type alias CellMatrix =
@@ -22,8 +31,10 @@ type alias Board =
     { scale : Int
     , status : String
     , gen_color : String
+    , countdown : Int
     , pending : Cells
     , cells : CellMatrix
+    , user_config : Config
     }
 
 
@@ -33,11 +44,8 @@ type BoardAction
     | Incoming String
     | UpdateCell CellAction
     | CreateColor (List Int)
-    | UpdateScale String
-
-
-
--- | TimedSend Time
+    | TimedSend Time
+    | UpdateConfig ConfigUpdate
 
 
 init : ( Board, Cmd BoardAction )
@@ -48,8 +56,11 @@ init =
 
         cells =
             M.square 1 (C.init "")
+
+        config =
+            User.init
     in
-        ( Board scale "" "" [] cells, gen_color )
+        ( Board scale "" "" 0 [] cells config, gen_color )
 
 
 board_update : BoardAction -> Board -> ( Board, Cmd BoardAction )
@@ -78,16 +89,6 @@ board_update action board =
                       , board_effect
                       ]
 
-        UpdateScale scale_ ->
-            let
-                scale_int =
-                    Result.withDefault 0 (String.toInt scale_)
-
-                cells_ =
-                    M.square scale_int (C.init board.gen_color)
-            in
-                ( { board | cells = cells_, scale = scale_int }, Cmd.none )
-
         Send ->
             let
                 payload =
@@ -95,12 +96,22 @@ board_update action board =
             in
                 ( board, ws_send payload )
 
-        -- TimedSend _ ->
-        --     let
-        --         payload =
-        --             Req.encode_zero (Req.activity "change" board.gen_color board.pending)
-        --     in
-        --         ( board, ws_send payload )
+        TimedSend t ->
+            let
+                payload =
+                    Req.encode_zero (Req.activity "change" board.gen_color board.pending)
+
+                count =
+                    board.countdown - 1
+
+                timer =
+                    if count == 0 then
+                        "0"
+                    else
+                        toString count
+            in
+                ( { board | countdown = count, status = timer }, Cmd.none )
+
         Incoming message_ ->
             let
                 decode_message =
@@ -159,6 +170,31 @@ board_update action board =
             in
                 ( { board | cells = cells_, pending = pending_ }, ws_send payload )
 
+        UpdateConfig configAction ->
+            let
+                config_ =
+                    User.config_update configAction board.user_config
+
+                default_cells =
+                    M.square config_.size (C.init board.gen_color)
+
+                cells_ =
+                    generate_template config_.pattern default_cells
+
+                pending_ =
+                    M.flatten cells_
+                        |> List.filter (\c -> Tuple.first c.alive == "O")
+            in
+                ( { board
+                    | cells = cells_
+                    , scale = config_.size
+                    , countdown = config_.count
+                    , pending = pending_
+                    , user_config = config_
+                  }
+                , Cmd.none
+                )
+
 
 ws_send : String -> Cmd BoardAction
 ws_send =
@@ -167,6 +203,22 @@ ws_send =
 
 
 -- Board logic
+
+
+generate_template : String -> CellMatrix -> CellMatrix
+generate_template name default =
+    case name of
+        "blinker_and_toad" ->
+            replace_cell default Tmp.blinker_and_toad
+
+        "pulsar" ->
+            replace_cell default Tmp.pulsar
+
+        "glider" ->
+            replace_cell default Tmp.glider
+
+        _ ->
+            default
 
 
 to_rgb : List Int -> String

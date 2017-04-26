@@ -5,18 +5,15 @@ import Html.Attributes exposing (align, type_, style)
 import Html.Events exposing (onClick, onInput)
 import Model.Board exposing (Board, BoardAction(..))
 import View.Cell exposing (draw_row)
+import View.UserConfig exposing (config_view)
 
 
 board_view : Board -> Html BoardAction
 board_view board =
-    let
-        show_view =
-            if board.scale >= 3 then
-                display_grid board
-            else
-                display_init
-    in
-        show_view
+    if board.scale >= 3 || board.user_config.pattern /= "" then
+        display_grid board
+    else
+        display_init board
 
 
 display_grid : Board -> Html BoardAction
@@ -38,11 +35,6 @@ display_grid board =
             ]
 
 
-display_init : Html BoardAction
-display_init =
-    div [ align "center" ]
-        [ text "Please enter scale larger then 3"
-        , br [] []
-        , br [] []
-        , input [ type_ "text", onInput UpdateScale ] []
-        ]
+display_init : Board -> Html BoardAction
+display_init board =
+    config_view board.user_config |> Html.map UpdateConfig
